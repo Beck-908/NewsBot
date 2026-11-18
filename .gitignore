@@ -1,0 +1,5 @@
+news.db
+newsbot.db
+out/
+__pycache__/
+.claude/

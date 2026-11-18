@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NewsBot</title>
+<style>
+:root { --bg:#0b0f14; --panel:#131a22; --panel2:#19222d; --line:#263140; --text:#e8eef4; --dim:#8a97a6;
+        --link:#6cb6ff; --RED:#ff5c5c; --ORANGE:#ffa23a; --YELLOW:#e6c84a; --ok:#3fb950; }
+* { box-sizing:border-box; }
+html { color-scheme:dark; }
+body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 system-ui, "Segoe UI", sans-serif; }
+button, input, select { font:inherit; color:inherit; }
+:focus-visible { outline:2px solid var(--link); outline-offset:2px; }
+.RED { --c:var(--RED); } .ORANGE { --c:var(--ORANGE); } .YELLOW { --c:var(--YELLOW); }
+.dim { color:var(--dim); }
+h1 { font-size:17px; margin:0; }
+h2 { font-size:12px; margin:0 0 8px; color:var(--dim); text-transform:uppercase; letter-spacing:.06em; }
+.badge { display:inline-block; min-width:76px; text-align:center; color:#0b0f14; background:var(--c);
+         border:1px solid var(--c); border-radius:4px; padding:0 6px; font-size:11px; font-weight:700; }
+.pending .badge { background:transparent; color:var(--c); border-style:dashed; }
+.btn { background:var(--panel2); border:1px solid var(--line); border-radius:6px; padding:4px 12px; cursor:pointer;
+       text-decoration:none; color:var(--text); display:inline-block; }
+.btn:hover { border-color:var(--dim); }
+.btn[aria-pressed="true"] { background:var(--text); color:var(--bg); border-color:var(--text); }
+
+.top { position:sticky; top:0; z-index:2; background:var(--panel); border-bottom:1px solid var(--line); }
+header, .bar { display:flex; gap:8px 16px; align-items:center; flex-wrap:wrap; padding:8px 16px; }
+.bar { border-top:1px solid var(--line); }
+.live { display:inline-flex; align-items:center; gap:6px; }
+.dot { width:9px; height:9px; border-radius:50%; background:var(--RED); }
+.live.ok .dot { background:var(--ok); }
+#alerts { margin-left:auto; }
+#filters { display:flex; gap:6px; flex-wrap:wrap; }
+#search { flex:1 1 220px; min-width:160px; background:var(--bg); border:1px solid var(--line); border-radius:6px;
+          padding:5px 10px; }
+select { background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:4px 6px; }
+
+main { display:grid; grid-template-columns:300px minmax(0, 1fr); gap:16px; padding:16px; }
+body.has-detail main { padding-right:496px; }
+.side { align-self:start; position:sticky; top:104px; display:grid; gap:16px; }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px; }
+.ev { display:grid; grid-template-columns:auto 1fr; gap:0 8px; padding:6px 0; border-top:1px solid var(--line); }
+.ev .when { color:var(--dim); white-space:nowrap; font-size:12px; }
+.ev.soon .when { color:var(--RED); font-weight:600; }
+.ev .badge { min-width:0; }
+small { color:var(--dim); display:block; }
+table { width:100%; border-collapse:collapse; font-size:12px; }
+td, th { text-align:left; padding:2px 4px; }
+td:first-child { color:var(--c); font-weight:700; }
+
+.row { display:grid; grid-template-columns:auto 132px minmax(0, 1fr); gap:0 12px; align-items:start; width:100%;
+       text-align:left; background:var(--panel); border:1px solid var(--line); border-left:4px solid var(--c);
+       border-radius:6px; padding:8px 12px; margin-bottom:6px; cursor:pointer; }
+.row:hover, .row.open { background:var(--panel2); }
+.row.open { border-color:var(--c); }
+.row.pending { border-left-style:dashed; }
+.row.fresh { box-shadow:0 0 0 1px var(--c); }
+.row .time { color:var(--dim); font-size:12px; white-space:nowrap; }
+.row .head { display:block; font-weight:600; font-size:15px; }
+.row .meta { display:block; color:var(--dim); font-size:12px; }
+
+.detail { position:fixed; top:0; right:0; bottom:0; width:480px; max-width:100vw; z-index:3; overflow-y:auto;
+          background:var(--panel); border-left:1px solid var(--line); padding:16px; }
+.detail.full { left:0; width:auto; border-left:0; padding:24px max(24px, calc(50vw - 460px)); }
+.detail .dtop { display:flex; justify-content:space-between; align-items:center; }
+.dtop .btn + .btn { margin-left:6px; }
+h2.group { margin:18px 0 8px; font-size:13px; color:var(--text); }
+h2.group:first-child { margin-top:0; }
+.detail h2 { font-size:19px; line-height:1.3; color:var(--text); text-transform:none; letter-spacing:0; margin:12px 0 4px; }
+.detail h3 { font-size:12px; margin:18px 0 6px; color:var(--dim); text-transform:uppercase; letter-spacing:.06em; }
+.detail p { margin:4px 0; }
+.detail a { color:var(--link); }
+.detail a.btn { color:var(--text); margin-top:8px; }
+.stats { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.stat { background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:8px 10px; }
+.stat.wide { grid-column:1 / -1; }
+.stat b { display:block; font-size:16px; color:var(--c, var(--text)); }
+.stat .label { font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.05em; }
+.meter { height:6px; border-radius:3px; background:var(--line); margin:4px 0; overflow:hidden; }
+.meter div { height:100%; background:var(--ok); }
+.detail ul { margin:0; padding-left:18px; }
+.detail li { margin-bottom:6px; }
+
+@media (max-width: 1100px) { body.has-detail main { padding-right:16px; } }
+@media (max-width: 800px) {
+  main { grid-template-columns:1fr; } .side { position:static; }
+  .row { grid-template-columns:auto 1fr; } .row .body { grid-column:1 / -1; }
+}
+</style>
+</head>
+<body>
+<div class="top">
+  <header>
+    <h1>NewsBot</h1>
+    <span id="tabs" role="group" aria-label="Market"></span>
+    <span id="live" class="live" role="status"><span class="dot"></span><span id="livetext">Connecting</span></span>
+    <span id="clock" class="dim"></span>
+    <span id="ai" class="dim"></span>
+    <button id="alerts" class="btn" type="button">Alerts start on your first click</button>
+  </header>
+  <div class="bar">
+    <div id="filters" role="group" aria-label="Filter by rating"></div>
+    <input id="search" type="search" placeholder="Search headline, source, ticker" aria-label="Search stories">
+    <label>Sort <select id="sort"><option value="prio">By priority</option><option value="new">Newest first</option></select></label>
+    <label><input id="hide3" type="checkbox"> Hide unverified sources</label>
+  </div>
+</div>
+<main>
+  <div class="side">
+    <div class="card"><h2>Scheduled events</h2><div id="cal"></div></div>
+    <div class="card"><h2>Rating check</h2><div id="acc"></div></div>
+  </div>
+  <section id="feed" aria-label="News stories"></section>
+</main>
+<section id="detail" class="detail" aria-label="Story details" hidden></section>
+
+<script>
+// All feed text is untrusted: every node is built with textContent, never innerHTML.
+const $ = id => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls;
+  if (text != null) e.textContent = text; return e; };
+const ET = "America/New_York";
+const etTime = d => d.toLocaleTimeString("en-US", {timeZone: ET, hour: "2-digit", minute: "2-digit"});
+const etDate = d => d.toLocaleString("en-US", {timeZone: ET, weekday: "short", month: "short", day: "numeric",
+  hour: "2-digit", minute: "2-digit"});
+const span = ms => { const m = Math.round(Math.abs(ms) / 60000);
+  return m < 60 ? m + "m" : m < 1440 ? Math.floor(m / 60) + "h " + (m % 60) + "m" : Math.floor(m / 1440) + "d"; };
+const TRUST = {1: "Official source", 2: "Major outlet", 3: "Unverified source"};
+const NAMES = {ALL: "All", RED: "High", ORANGE: "Medium", YELLOW: "Low", BRIEFING: "Briefing"};
+const PRIO = {RED: "HIGH", ORANGE: "MEDIUM", YELLOW: "LOW"};
+const GROUPS = {RED: "High priority", ORANGE: "Medium priority", YELLOW: "Low priority"};
+const when = it => new Date(it.published || it.detected);
+const key = it => it.cluster || it.url;
+const label = it => it.state === "pending" ? (it.rating === "ORANGE" ? "KEYWORD" : "UNRATED") : PRIO[it.rating];
+
+let state = null, heads = [], online = false, filter = "ALL", query = "", sort = "prio", hide3 = false;
+let openKey = null, openUrl = null, detailSig = "", feedSig = "", feedAt = 0, full = false;
+let known = null, redSeen = null, audio = null;
+const fresh = new Map(), previews = new Map();
+
+function getPreview(url) {
+  if (!previews.has(url)) {
+    previews.set(url, {loading: true});
+    fetch("/api/preview?url=" + encodeURIComponent(url)).then(r => r.json())
+      .catch(() => ({error: "Preview failed. Open the original."}))
+      .then(p => { previews.set(url, p); render(true); });
+  }
+  return previews.get(url);
+}
+
+for (const f of Object.keys(NAMES)) {
+  const b = el("button", "btn", NAMES[f]);
+  b.type = "button"; b.dataset.f = f;
+  b.onclick = () => { filter = f; render(true); };
+  $("filters").append(b);
+}
+let topic = "markets";
+for (const [value, name] of [["markets", "Markets"], ["crypto", "Crypto"]]) {
+  const b = el("button", "btn", name);
+  b.type = "button"; b.setAttribute("aria-pressed", value === topic);
+  b.onclick = () => { topic = value;
+    for (const x of $("tabs").children) x.setAttribute("aria-pressed", x === b);
+    render(true); };
+  $("tabs").append(b, " ");
+}
+$("search").oninput = e => { query = e.target.value.trim().toLowerCase(); render(true); };
+$("sort").onchange = e => { sort = e.target.value; render(true); };
+$("hide3").onchange = e => { hide3 = e.target.checked; render(true); };
+// Browsers block sound and the permission prompt until the first click or key press, so that turns alerts on.
+function enableAlerts() {
+  if (audio) return;
+  audio = new AudioContext();
+  if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
+  $("alerts").textContent = "High-priority alerts on"; $("alerts").disabled = true;
+}
+for (const type of ["pointerdown", "keydown"]) document.addEventListener(type, enableAlerts, {once: true});
+document.addEventListener("keydown", e => { if (e.key === "Escape" && openKey) closeDetail(); });
+
+function redAlert(it) {
+  if (audio) { const o = audio.createOscillator(), g = audio.createGain(); o.connect(g); g.connect(audio.destination);
+    o.frequency.value = 880; g.gain.value = 0.2; o.start(); o.stop(audio.currentTime + 0.4); }
+  if (window.Notification && Notification.permission === "granted") new Notification("HIGH: " + it.headline);
+}
+
+// one entry per story: the newest item of each cluster, carrying the older ones as history
+function stories() {
+  const first = new Map(), out = [];
+  for (const it of state.items) {
+    const head = it.cluster && first.get(it.cluster);
+    if (head) { head.history.push(it); continue; }
+    it.history = []; out.push(it);
+    if (it.cluster) first.set(it.cluster, it);
+  }
+  return out;
+}
+
+function matches(it) {
+  if (it.topic !== topic) return false;
+  if (hide3 && it.tier === 3 && !it.history.some(h => h.tier < 3)) return false;
+  if (!query) return true;
+  return (it.headline + " " + it.source + " " + (it.affected || []).join(" ")).toLowerCase().includes(query);
+}
+
+function renderHeader(now) {
+  const polled = state && state.last_poll ? now - new Date(state.last_poll) : null;
+  const ok = online && polled != null && polled < 120000;
+  $("live").className = "live" + (ok ? " ok" : "");
+  $("livetext").textContent = !online ? "Bot is not running" : polled == null ? "Starting"
+    : ok ? "Live. Sources checked " + Math.round(polled / 1000) + "s ago" : "Stale. Last check " + span(polled) + " ago";
+  if (!state) return;
+  $("clock").textContent = etTime(new Date()) + " ET, " + state.session;
+  $("ai").textContent = state.ai ? "AI rating on" : "AI rating off: keyword flags only";
+}
+
+function renderSide(now) {
+  const events = state.calendar.filter(e => new Date(e.time) > now - 30 * 60000).slice(0, 12);
+  $("cal").replaceChildren(...events.map(e => {
+    const t = new Date(e.time), left = t - now, row = el("div", "ev " + e.severity + (left < 15 * 60000 ? " soon" : ""));
+    const at = el("div", "when");
+    at.append(el("span", "badge", PRIO[e.severity]), " " + (left > 0 ? "in " + span(left) : span(left) + " ago"));
+    const what = el("div");
+    what.append(el("div", "", e.country + " " + e.title), el("small", "", etDate(t) + " ET. Forecast " +
+      (e.forecast || "n/a") + ", previous " + (e.previous || "n/a")));
+    row.append(at, what);
+    return row;
+  }));
+  if (!events.length) $("cal").append(el("div", "dim", "No events loaded."));
+
+  const hs = ["5m", "30m", "1d"];
+  if (state.accuracy.some(r => hs.some(h => r[h].n))) {
+    const table = el("table"), top = el("tr");
+    top.append(el("th", "", "Rating"), ...hs.map(h => el("th", "", h)));
+    table.append(top, ...state.accuracy.map(r => { const tr = el("tr", r.rating);
+      tr.append(el("td", "", PRIO[r.rating]), ...hs.map(h => el("td", "", r[h].n ? r[h].avg + "% (" + r[h].n + ")" : "n/a")));
+      return tr; }));
+    $("acc").replaceChildren(table, el("small", "", "Average absolute NQ move after each story, with sample count."));
+  } else $("acc").replaceChildren(el("div", "dim", "No data yet. Needs AI ratings and NQ prices."));
+}
+
+function renderFeed(now) {
+  const base = heads.filter(matches), close = new Date(state.last_close);
+  const inBrief = it => it.rating !== "YELLOW" && when(it) >= close;
+  const counts = {ALL: base.length, RED: 0, ORANGE: 0, YELLOW: 0, BRIEFING: base.filter(inBrief).length};
+  for (const it of base) counts[it.rating]++;
+  for (const b of $("filters").children) {
+    b.textContent = NAMES[b.dataset.f] + " " + counts[b.dataset.f];
+    b.setAttribute("aria-pressed", b.dataset.f === filter);
+  }
+  let list = base.filter(it => filter === "ALL" || (filter === "BRIEFING" ? inBrief(it) : it.rating === filter));
+  const focused = document.activeElement && document.activeElement.dataset.key;
+  const rowOf = it => {
+    const t = when(it), pending = it.state === "pending";
+    const b = el("button", "row " + it.rating + (pending ? " pending" : "") + (key(it) === openKey ? " open" : "") +
+      ((fresh.get(it.url) || 0) > now ? " fresh" : ""));
+    b.type = "button"; b.dataset.key = key(it);
+    b.onclick = () => { openKey = key(it); openUrl = it.url; render(true); $("detail").querySelector("button").focus(); };
+    const meta = [it.source, TRUST[it.tier]];
+    if (it.history.length) meta.push((it.history.length + 1) + " reports");
+    if (it.credibility != null) meta.push("likely real " + it.credibility + "%");
+    if (it.status) meta.push(it.status);
+    const body = el("span", "body");
+    body.append(el("span", "head", it.headline), el("span", "meta", meta.join(" · ")));
+    b.append(el("span", "badge", label(it)), el("span", "time", etTime(t) + " ET · " + span(now - t) + " ago"), body);
+    return b;
+  };
+  if (sort === "prio") {
+    const nodes = [];
+    for (const r of ["RED", "ORANGE", "YELLOW"]) {
+      if (filter !== "ALL" && filter !== "BRIEFING" && filter !== r) continue;
+      const group = list.filter(it => it.rating === r);
+      nodes.push(el("h2", "group " + r, GROUPS[r] + " (" + group.length + ")"), ...group.slice(0, 150).map(rowOf));
+      if (!group.length) nodes.push(el("p", "dim", r === "RED" && !state.ai
+        ? "None. High priority needs an AI rating." : "None right now."));
+    }
+    $("feed").replaceChildren(...nodes);
+  } else $("feed").replaceChildren(...list.slice(0, 300).map(rowOf));
+  if (filter === "BRIEFING") $("feed").prepend(el("p", "dim", "High and medium priority stories since the last close (" +
+    etDate(close) + " ET). Today's scheduled events are in the side panel."));
+  if (!list.length && sort !== "prio") $("feed").append(el("p", "dim", "No stories match."));
+  if (focused) for (const b of $("feed").children) if (b.dataset.key === focused) { b.focus(); break; }
+}
+
+function closeDetail() {
+  const k = openKey;
+  openKey = openUrl = null; render(true);
+  for (const b of $("feed").children) if (b.dataset.key === k) { b.focus(); break; }
+}
+
+function stat(name, value, note, cls) {
+  const s = el("div", "stat " + (cls || ""));
+  s.append(el("div", "label", name), el("b", "", value));
+  if (note) s.append(el("small", "", note));
+  return s;
+}
+
+function renderDetail(force, now) {
+  const box = $("detail");
+  // a pending item gets a new key once the AI assigns its story, so also look it up by address
+  const it = openKey && (heads.find(h => key(h) === openKey) ||
+    heads.find(h => h.url === openUrl || h.history.some(x => x.url === openUrl)));
+  if (!it) { openKey = openUrl = null; box.hidden = true; document.body.classList.remove("has-detail"); return; }
+  openKey = key(it);
+  const pv = getPreview(it.url);
+  const sig = JSON.stringify([it, state.nq_now, state.ai, pv, full]);
+  if (!force && sig === detailSig && !box.hidden) return;
+  detailSig = sig;
+
+  const pending = it.state === "pending", t = when(it), all = [it, ...it.history], first = all[all.length - 1];
+  const top = el("div", "dtop " + it.rating + (pending ? " pending" : ""));
+  const shut = el("button", "btn", "Close");
+  shut.type = "button"; shut.onclick = closeDetail;
+  const size = el("button", "btn", full ? "Exit full screen" : "Full screen");
+  size.type = "button";
+  size.onclick = () => { full = !full; render(true); $("detail").querySelector("button").focus(); };
+  const buttons = el("span");
+  buttons.append(size, shut);
+  top.append(el("span", "badge", label(it)), buttons);
+  box.classList.toggle("full", full);
+  const link = el("a", "btn", "Open original article");
+  link.href = it.url; link.target = "_blank"; link.rel = "noopener noreferrer";
+  const parts = [top, el("h2", "", it.headline),
+    el("p", "dim", it.source + " · " + TRUST[it.tier] + " · " + etDate(t) + " ET (" + span(now - t) + " ago)"), link];
+  if (!pending) parts.push(el("h3", "", "AI summary"), el("p", "", it.summary));
+  parts.push(el("h3", "", "Article preview"));
+  if (pv.loading) parts.push(el("p", "dim", "Loading the preview from the publisher's page."));
+  else if (pv.error) {
+    if (it.excerpt && it.excerpt !== it.headline) parts.push(el("p", "", it.excerpt));
+    parts.push(el("p", "dim", pv.error));
+  } else {
+    if (pv.description) parts.push(el("p", "", pv.description));
+    if (pv.text) parts.push(el("p", "dim", pv.text));
+    parts.push(el("small", "", "Short excerpt from the publisher's page. Open the original for the full article."));
+  }
+  if (pending) parts.push(el("p", "dim", state.ai ? "AI rating is pending."
+    : "AI rating is off, so there is no AI summary or rating."));
+
+  const stats = el("div", "stats");
+  if (!pending) {
+    stats.append(stat("Trading impact", PRIO[it.rating], it.trading_reason, "wide " + it.rating),
+      stat("Investing impact", PRIO[it.investing_rating], it.investing_reason, "wide " + it.investing_rating));
+    const real = stat("Likely real", it.credibility != null ? it.credibility + "%" : "Not rated",
+      it.credibility_reason, "wide");
+    if (it.credibility != null) { const m = el("div", "meter"), fill = el("div");
+      fill.style.width = it.credibility + "%"; m.append(fill); real.children[1].after(m); }
+    stats.append(real);
+  } else stats.append(stat("Likely real", "Not rated", "Needs an AI rating. Judge by source trust for now.", "wide"));
+  const trusted = all.filter(x => x.tier < 3).length;
+  stats.append(stat("Source trust", TRUST[it.tier], all.length + (all.length === 1 ? " report" : " reports") +
+    ", " + trusted + " from official or major outlets"));
+  if (!pending) stats.append(stat("Status", it.status),
+    stat("Expected direction", it.direction, it.confidence + " confidence"),
+    stat("Time horizon", it.horizon),
+    stat("Category", it.category.replaceAll("_", " "), it.scheduled ? "scheduled" : "unscheduled"),
+    stat("Affected", it.affected.join(", ") || "none named", null, "wide"));
+  if (it.topic === "markets" && first.nq_at && state.nq_now) {
+    const pct = (state.nq_now.price - first.nq_at) / first.nq_at * 100, n = x => x.toLocaleString("en-US");
+    stats.append(stat("NQ since first report", (pct >= 0 ? "+" : "") + pct.toFixed(2) + "%",
+      n(first.nq_at) + " to " + n(state.nq_now.price) + ". Price as of " +
+      etTime(new Date(state.nq_now.time * 1000)) + " ET, delayed feed.", "wide"));
+  }
+  const seen = it.published ? "Bot saw it " + span(new Date(it.detected) - new Date(it.published)) +
+    " after publication" : "Feed gave no publish time";
+  stats.append(stat("First report", etDate(when(first)) + " ET", seen, "wide"));
+  parts.push(el("h3", "", "Analytics"), stats);
+
+  if (all.length > 1) {
+    const list = el("ul");
+    for (const x of all) { const li = el("li"), a = el("a", "", x.headline);
+      a.href = x.url; a.target = "_blank"; a.rel = "noopener noreferrer";
+      li.append(a, el("small", "", etTime(when(x)) + " ET · " + x.source + " · " + TRUST[x.tier] + " · " + label(x)));
+      list.append(li); }
+    parts.push(el("h3", "", "Coverage: " + all.length + " reports"), list);
+    if (it.history.some(h => h.rating !== it.rating)) parts.push(el("p", "dim", "Rating history: " +
+      [...it.history].reverse().map(h => PRIO[h.rating] + " " + etTime(new Date(h.detected))).join(" > ") +
+      " > " + PRIO[it.rating] + " now"));
+  }
+  parts.push(el("h3", "", "Note"), el("p", "dim",
+    "Ratings are estimates from an AI classifier and can be wrong. Not trade advice. Check the original article."));
+  const scroll = box.scrollTop;
+  box.replaceChildren(...parts);
+  box.hidden = false; box.scrollTop = scroll;
+  document.body.classList.add("has-detail");
+}
+
+function render(force) {
+  const now = Date.now();
+  renderHeader(now);
+  if (!state) return;
+  renderSide(now);
+  if (force || now - feedAt > 30000) { feedAt = now; renderFeed(now); }  // also refreshes the "ago" times
+  renderDetail(force, now);
+}
+
+async function tick() {
+  let text;
+  try { text = await (await fetch("/api", {cache: "no-store"})).text(); state = JSON.parse(text); online = true; }
+  catch { online = false; renderHeader(Date.now()); return; }
+  heads = stories();
+  const now = Date.now();
+  if (known) for (const it of state.items) if (!known.has(it.url)) fresh.set(it.url, now + 60000);
+  known = new Set(state.items.map(it => it.url));
+  const reds = heads.filter(it => it.state === "rated" && it.rating === "RED");
+  if (redSeen) for (const it of reds) if (!redSeen.has(key(it))) redAlert(it);  // once per story
+  redSeen = new Set(reds.map(key));
+  document.title = (reds.length ? "(" + reds.length + " high) " : "") + "NewsBot";
+  const changed = text !== feedSig;
+  feedSig = text;
+  render(changed);
+}
+tick(); setInterval(tick, 3000);
+</script>
+</body>
+</html>
